@@ -1,6 +1,6 @@
 import { useMemo, useState } from 'react';
 import { Button, EmptyState } from '../ui';
-import { findFirstArrayOfObjects, guessChartColumns, rowsToTable } from '../../results/flatten';
+import { findChartableData, findFirstArrayOfObjects, rowsToTable } from '../../results/flatten';
 import { downloadTextFile, rowsToCsv } from '../../results/csv';
 import { ResultTable } from './ResultTable';
 import { ResultChart } from './ResultChart';
@@ -16,7 +16,7 @@ export function ResultView({ data }: { data: unknown }) {
     return { path: found.path, ...rowsToTable(found.rows) };
   }, [data]);
 
-  const chartColumns = useMemo(() => (tableData ? guessChartColumns(tableData.columns) : { labelColumn: null, valueColumn: null }), [tableData]);
+  const chartData = useMemo(() => findChartableData(data), [data]);
 
   const jsonText = JSON.stringify(data, null, 2);
 
@@ -72,8 +72,13 @@ export function ResultView({ data }: { data: unknown }) {
         ))}
 
       {tab === 'chart' &&
-        (tableData && chartColumns.labelColumn && chartColumns.valueColumn ? (
-          <ResultChart rows={tableData.rows} labelColumn={chartColumns.labelColumn} valueColumn={chartColumns.valueColumn} />
+        (chartData ? (
+          <>
+            <p className="text-xs text-slate-400">
+              Charting list found at <span className="font-mono">{chartData.path.join('.').replace(/\.0\./g, '[].') || '(root)'}</span>
+            </p>
+            <ResultChart rows={chartData.rows} labelColumn={chartData.labelColumn} valueColumn={chartData.valueColumn} />
+          </>
         ) : (
           <EmptyState
             title="No chartable data found"

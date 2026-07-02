@@ -184,6 +184,43 @@ scoring endpoint later without touching the UI - it already returns the same
 (document text + variables) → `executeGraphQLQuery()` runs it → result
 rendered as JSON/table/chart.
 
+## Tests
+
+```bash
+npm test          # run the Vitest suite once
+npm run test:watch
+npm run typecheck  # tsc project build (no emit)
+```
+
+The suite (`src/__tests__/`) covers the pure logic that a UI smoke test can't
+easily assert on:
+
+- **schema parsing** - SDL → internal model, required-arg detection, list/
+  non-null unwrapping, enum values, nested input-object argument flattening;
+- **time range** - preset resolution (last 24h / 7d / current month, ...) and
+  custom-range passthrough;
+- **query builder** - variable nesting from dotted paths, dimension-filter
+  routing, empty-object / duplicate / unknown-field pruning, and an
+  end-to-end `generateQuery()` whose output is re-parsed with `graphql` to
+  prove it is syntactically valid;
+- **complexity** - hard blocks (missing required time range, nothing
+  selected) vs. overridable soft warnings;
+- **results** - table flattening, CSV escaping, chart-series selection
+  (prefers the nested time-series array), and bar-height scaling.
+
+## Continuous integration & releases
+
+Two GitHub Actions workflows (`.github/workflows/`):
+
+- **`ci.yml`** runs on every push and pull request: `npm ci`, typecheck,
+  lint, test, build. This is what puts a real status check on each PR.
+- **`release.yml`** runs on push to `main` (i.e. when a PR is merged): it
+  reads the version from `package.json`, and if a `v<version>` tag doesn't
+  already exist, builds the app and creates a GitHub release for that tag
+  with the built `dist/` attached as a zip. To cut a new release, bump the
+  `version` in `package.json` on a PR; merging it to `main` publishes the
+  release automatically. Pushes that don't change the version are a no-op.
+
 ## Limitations
 
 This is a first, extensible version, not a finished enterprise product.
@@ -217,11 +254,11 @@ Known gaps, most with a clear extension point already in the code:
 - **Auth headers are stored in plaintext in `localStorage`** for developer
   convenience. Do not reuse this pattern for a shared/multi-user deployment
   without a real auth layer.
-- **No automated test suite yet.** The app has been manually smoke-tested
-  end-to-end (schema load → category → query → args → time range →
-  dimensions/filters → fields → preview → execute → templates) against the
-  bundled mock schema; unit tests for `query-builder/` and `complexity/`
-  would be the highest-value first addition.
+- **Unit tests cover logic, not React components.** The Vitest suite covers
+  the pure layers (schema/query-builder/complexity/results); the wizard
+  components themselves are exercised by manual end-to-end browser runs
+  rather than component tests. Adding Testing-Library component tests (or a
+  Playwright E2E job in CI) would be the highest-value next addition.
 
 ## Future enhancements
 
