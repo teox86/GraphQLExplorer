@@ -144,6 +144,8 @@ type KpiSeries {
   kpiKey: String!
   kpiLabel: String!
   unit: String
+  """A localized, human-readable label. Requires a language code argument."""
+  localizedLabel(lang: String!): String
   points: [KpiPoint!]!
   summary: KpiSummary
 }

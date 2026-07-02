@@ -167,6 +167,13 @@ export const EXAMPLE_GOVERNANCE_CONFIG: GovernanceConfig = {
     { fieldPath: 'endCursor', visibility: 'technical', internalOnly: true },
   ],
 
+  fieldArgumentDefaults: [
+    // Any selected field that takes a `lang` argument defaults to English, so the
+    // required argument is satisfied automatically. Users can still override it
+    // per field in the Field Selection step.
+    { argName: 'lang', value: 'en' },
+  ],
+
   dimensions: [
     { key: 'site', label: 'Site', argumentPath: 'input.siteId', parentKey: null, supportsGroupBy: true },
     {

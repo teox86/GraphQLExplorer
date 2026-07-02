@@ -93,10 +93,11 @@ says:
 
 ```ts
 export const EXAMPLE_GOVERNANCE_CONFIG: GovernanceConfig = {
-  categories: [...],          // Step 2 "data intent" buckets
-  rootQueryOverrides: [...],  // per-root-query labels, tags, time-range mapping, limits
-  fieldOverrides: [...],      // hide/relabel/reclassify individual fields by path
-  dimensions: [...],          // business dimensions (Site > Area > Line > Equipment, KPI, ...)
+  categories: [...],             // Step 2 "data intent" buckets
+  rootQueryOverrides: [...],     // per-root-query labels, tags, time-range mapping, limits
+  fieldOverrides: [...],         // hide/relabel/reclassify individual fields by path
+  fieldArgumentDefaults: [...],  // default values for arguments that fields take (e.g. lang: "en")
+  dimensions: [...],             // business dimensions (Site > Area > Line > Equipment, KPI, ...)
   kpiFamilies: [...],
   kpis: [...],
   timeBuckets: [...],
@@ -139,6 +140,36 @@ the query result** (e.g. `"materials"`, `"line.equipment.serialNumber"`) and
 can hide a field, mark it internal-only, relabel/redescribe it, or bucket it
 into `recommended` / `common` / `advanced` / `technical` visibility for the
 Step 6 field tree.
+
+### Field arguments (e.g. a required `lang`)
+
+Not only root queries take arguments - individual fields can too (a common
+case is a localized label like `localizedLabel(lang: String!)`). The builder
+handles these:
+
+- When you select a field that takes arguments, an **inline argument editor**
+  appears under it in the Field Selection step (an `args` badge marks such
+  fields; it turns red when a required argument is unset). The generated query
+  passes each value as a proper GraphQL **variable**.
+- To avoid filling the same argument on every field, declare a default
+  centrally in `fieldArgumentDefaults`:
+
+  ```ts
+  fieldArgumentDefaults: [
+    { argName: 'lang', value: 'en' },                        // any field taking `lang`
+    { fieldPath: 'series.localizedLabel', argName: 'lang', value: 'en' }, // one specific field
+  ]
+  ```
+
+  A default keyed to an exact `fieldPath` wins over a name-only default. The
+  effective value (your entry layered over the default) is what the query
+  uses, so a required argument with a declared default is satisfied
+  automatically - and is still overridable per field.
+- If a selected field has a **required** argument with no value and no
+  default, the Query Preview shows a **hard warning** and execution is blocked
+  until it's set, so you never send an invalid query. Auto-selection helpers
+  ("minimal useful result", "select all visible") skip argument-requiring
+  fields for the same reason.
 
 ## Example flow: a time-based KPI report
 

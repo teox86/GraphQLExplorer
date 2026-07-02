@@ -117,6 +117,23 @@ export function isFieldHidden(config: GovernanceConfig, fieldPath: string): bool
   return getFieldOverride(config, fieldPath)?.hidden ?? false;
 }
 
+/**
+ * Resolves the governance-declared default for a field argument, if any.
+ * A default keyed to an exact `fieldPath` wins over a name-only default that
+ * applies to every field. Returns `undefined` when nothing is declared.
+ */
+export function getFieldArgumentDefault(
+  config: GovernanceConfig,
+  fieldPath: string,
+  argName: string,
+): unknown {
+  const defaults = config.fieldArgumentDefaults ?? [];
+  const exact = defaults.find((d) => d.fieldPath === fieldPath && d.argName === argName);
+  if (exact) return exact.value;
+  const anyField = defaults.find((d) => d.fieldPath === undefined && d.argName === argName);
+  return anyField ? anyField.value : undefined;
+}
+
 export function getDimensionsForRootQuery(config: GovernanceConfig, fieldName: string): DimensionConfig[] {
   const override = getRootQueryOverride(config, fieldName);
   if (!override?.dimensionKeys) return [];
