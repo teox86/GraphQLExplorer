@@ -1,4 +1,4 @@
-import type { FieldSelection, GovernanceConfig, IntrospectionSchemaModel, SchemaTypeRef } from '../types';
+import type { ArgumentValue, FieldSelection, GovernanceConfig, IntrospectionSchemaModel, SchemaTypeRef } from '../types';
 import { getSelectableFields, isLeafField } from '../schema/schema-utils';
 import { isFieldHidden } from '../governance/resolve';
 
@@ -91,7 +91,14 @@ export function buildObjectDefaultBranch(
   if (!typeRef || path.length === 0) return null;
 
   const leaves = getSelectableFields(model, typeRef)
-    .filter((f) => isLeafField(model, f.type) && !isFieldHidden(governance, [...path, f.name].join('.')))
+    .filter(
+      (f) =>
+        isLeafField(model, f.type) &&
+        !isFieldHidden(governance, [...path, f.name].join('.')) &&
+        // Don't auto-select fields that require arguments - the user selects those
+        // explicitly and fills the argument in the field editor.
+        !f.args.some((a) => a.isRequired),
+    )
     .map<FieldSelection>((f) => ({ name: f.name, children: [] }));
 
   if (leaves.length === 0) return null;
@@ -122,6 +129,32 @@ export function pruneEmptySelection(
   }
 
   return result;
+}
+
+/**
+ * Sets or removes an argument value on the (already selected) field at `path`.
+ * No-op when the field is not present in the selection. Removing the last
+ * value leaves an empty `args` array, which the query builder treats as none.
+ */
+export function updateFieldArgument(
+  tree: FieldSelection[],
+  path: string[],
+  argPath: string,
+  value: ArgumentValue | null,
+): FieldSelection[] {
+  if (path.length === 0) return tree;
+  const [head, ...rest] = path;
+  const idx = tree.findIndex((n) => n.name === head);
+  if (idx < 0) return tree;
+  const node = tree[idx];
+
+  if (rest.length === 0) {
+    const others = (node.args ?? []).filter((a) => a.path !== argPath);
+    const args = value === null ? others : [...others, value];
+    return tree.map((n, i) => (i === idx ? { ...node, args } : n));
+  }
+
+  return tree.map((n, i) => (i === idx ? { ...node, children: updateFieldArgument(node.children, rest, argPath, value) } : n));
 }
 
 /** Counts total selected nodes (leaves + object nodes) in the tree. */

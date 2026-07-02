@@ -1,8 +1,15 @@
 import { useState, type ReactNode } from 'react';
-import type { FieldSelection, GovernanceConfig, IntrospectionSchemaModel, SchemaField, SchemaTypeRef } from '../../types';
+import type { ArgumentValue, FieldSelection, GovernanceConfig, IntrospectionSchemaModel, SchemaField, SchemaTypeRef } from '../../types';
 import { getSelectableFields, isLeafField } from '../../schema/schema-utils';
 import { getFieldDescription, getFieldFriendlyLabel, getFieldVisibility, isFieldHidden } from '../../governance/resolve';
+import { missingRequiredFieldArguments } from '../../query-builder/field-arguments';
+import { FieldArgumentsEditor } from '../query/FieldArgumentsEditor';
 import { Badge } from '../ui';
+
+export interface FieldArgumentHandlers {
+  onSetFieldArg: (path: string[], value: ArgumentValue) => void;
+  onRemoveFieldArg: (path: string[], argPath: string) => void;
+}
 
 const VISIBILITY_ORDER = ['recommended', 'common', 'advanced', 'technical'] as const;
 const VISIBILITY_LABEL: Record<(typeof VISIBILITY_ORDER)[number], string> = {
@@ -25,9 +32,10 @@ interface FieldTreeProps {
   onToggle: (path: string[]) => void;
   /** Toggle an object node: select it with its default sub-fields, or clear its branch. */
   onToggleObject: (path: string[]) => void;
+  argHandlers: FieldArgumentHandlers;
 }
 
-export function FieldTree({ model, governance, parentTypeRef, ancestorPath, ancestorTypeNames, depth, maxDepth, selection, onToggle, onToggleObject }: FieldTreeProps) {
+export function FieldTree({ model, governance, parentTypeRef, ancestorPath, ancestorTypeNames, depth, maxDepth, selection, onToggle, onToggleObject, argHandlers }: FieldTreeProps) {
   const fields = getSelectableFields(model, parentTypeRef).filter((f) => !isFieldHidden(governance, [...ancestorPath, f.name].join('.')));
 
   const grouped = new Map<string, SchemaField[]>();
@@ -60,6 +68,7 @@ export function FieldTree({ model, governance, parentTypeRef, ancestorPath, ance
               selection={selection}
               onToggle={onToggle}
               onToggleObject={onToggleObject}
+              argHandlers={argHandlers}
             />
           )}
         </VisibilityGroup>
@@ -106,6 +115,7 @@ function FieldRow({
   selection,
   onToggle,
   onToggleObject,
+  argHandlers,
 }: {
   model: IntrospectionSchemaModel;
   governance: GovernanceConfig;
@@ -117,6 +127,7 @@ function FieldRow({
   selection: FieldSelection[];
   onToggle: (path: string[]) => void;
   onToggleObject: (path: string[]) => void;
+  argHandlers: FieldArgumentHandlers;
 }) {
   const path = [...ancestorPath, field.name];
   const fieldPathStr = path.join('.');
@@ -131,6 +142,10 @@ function FieldRow({
   // this field (leaf) is selected, or (object) has selected descendants.
   const childNode = selection.find((n) => n.name === field.name);
   const checked = Boolean(childNode);
+  const hasArguments = field.args.length > 0;
+  const missingRequiredArgs = checked && hasArguments
+    ? missingRequiredFieldArguments(model, governance, field, path, childNode?.args)
+    : [];
 
   const disabled = !leaf && (isCircular || depthExceeded);
 
@@ -171,8 +186,25 @@ function FieldRow({
         </span>
         <span className="font-mono text-[11px] text-slate-400">{field.name}</span>
         {field.isDeprecated && <Badge tone="amber">deprecated</Badge>}
+        {hasArguments && <Badge tone={missingRequiredArgs.length > 0 ? 'red' : 'blue'}>args</Badge>}
         {disabled && !leaf && <Badge tone="slate">{isCircular ? 'circular' : 'max depth'}</Badge>}
       </div>
+
+      {/* Argument editor for a selected field that takes arguments. */}
+      {checked && hasArguments && (
+        <div className="ml-6">
+          <FieldArgumentsEditor
+            model={model}
+            governance={governance}
+            field={field}
+            fieldPath={path}
+            selectionArgs={childNode?.args}
+            onSet={(value) => argHandlers.onSetFieldArg(path, value)}
+            onRemove={(argPath) => argHandlers.onRemoveFieldArg(path, argPath)}
+          />
+        </div>
+      )}
+
       {!leaf && expanded && !disabled && (
         <div className="ml-5 border-l border-slate-100 pl-3">
           <FieldTree
@@ -186,6 +218,7 @@ function FieldRow({
             selection={childNode?.children ?? []}
             onToggle={onToggle}
             onToggleObject={onToggleObject}
+            argHandlers={argHandlers}
           />
         </div>
       )}

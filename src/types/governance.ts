@@ -73,6 +73,25 @@ export interface FieldOverride {
   expensive?: boolean;
 }
 
+/**
+ * Declares a default value for an argument that a *field* takes (not the root
+ * query - those are handled in Step 4). This is the central place to satisfy
+ * required field arguments such as a `lang` locale code, so users don't have
+ * to fill them in field by field. Defaults are still overridable per field in
+ * the Field Selection step.
+ */
+export interface FieldArgumentDefault {
+  /**
+   * Optional dotted field path (relative to the query result, e.g.
+   * "series.localizedLabel"). When omitted, the default applies to *any*
+   * selected field that declares an argument with this name.
+   */
+  fieldPath?: string;
+  /** The argument name, or dotted path for a nested input-object argument. */
+  argName: string;
+  value: unknown;
+}
+
 /** A business dimension usable for filtering / grouping (Step 5). */
 export interface DimensionConfig {
   key: string;
@@ -112,6 +131,7 @@ export interface GovernanceConfig {
   categories: QueryCategory[];
   rootQueryOverrides: RootQueryOverride[];
   fieldOverrides: FieldOverride[];
+  fieldArgumentDefaults: FieldArgumentDefault[];
   dimensions: DimensionConfig[];
   kpiFamilies: KpiFamilyConfig[];
   kpis: KpiConfig[];

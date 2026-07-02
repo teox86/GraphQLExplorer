@@ -27,6 +27,7 @@ export function buildMinimalSelection(
       if (count >= maxLeaves) break;
       const path = [...ancestorPath, f.name];
       if (isLeafField(model, f.type)) {
+        if (f.args.some((a) => a.isRequired)) continue; // skip fields needing arguments in auto-selection
         tree = toggleSelectionPath(tree, path);
         count += 1;
       } else if (depth < 2) {
@@ -65,6 +66,7 @@ export function buildAllVisibleSelection(
       const path = [...ancestorPath, f.name];
 
       if (isLeafField(model, f.type)) {
+        if (f.args.some((a) => a.isRequired)) continue; // skip fields needing arguments in auto-selection
         tree = toggleSelectionPath(tree, path);
         count += 1;
       } else {

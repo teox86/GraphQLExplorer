@@ -14,7 +14,7 @@ import type { ExecuteQueryResult } from '../graphql/client';
 import { EXAMPLE_GOVERNANCE_CONFIG } from '../governance/example-config';
 import { createEmptyQueryConfiguration } from './default-state';
 import { getRootQueryOverride } from '../governance/resolve';
-import { buildObjectDefaultBranch, isPathSelected, pruneEmptySelection, setSelectionBranch, toggleSelectionPath } from './selection-tree';
+import { buildObjectDefaultBranch, isPathSelected, pruneEmptySelection, setSelectionBranch, toggleSelectionPath, updateFieldArgument } from './selection-tree';
 import { findRootQueryField } from '../schema/schema-utils';
 
 export interface WizardState {
@@ -48,6 +48,8 @@ type Action =
   | { type: 'SET_TIME_BUCKET'; bucket: string | null }
   | { type: 'TOGGLE_FIELD'; path: string[] }
   | { type: 'TOGGLE_OBJECT_DEFAULTS'; path: string[] }
+  | { type: 'SET_FIELD_ARGUMENT'; path: string[]; value: ArgumentValue }
+  | { type: 'REMOVE_FIELD_ARGUMENT'; path: string[]; argPath: string }
   | { type: 'SET_SELECTION'; selection: FieldSelection[] }
   | { type: 'SET_OVERRIDE_WARNINGS'; value: boolean }
   | { type: 'EXECUTION_START' }
@@ -191,6 +193,24 @@ function reducer(state: WizardState, action: Action): WizardState {
       return { ...state, config: { ...state.config, selection: pruned } };
     }
 
+    case 'SET_FIELD_ARGUMENT':
+      return {
+        ...state,
+        config: {
+          ...state.config,
+          selection: updateFieldArgument(state.config.selection, action.path, action.value.path, action.value),
+        },
+      };
+
+    case 'REMOVE_FIELD_ARGUMENT':
+      return {
+        ...state,
+        config: {
+          ...state.config,
+          selection: updateFieldArgument(state.config.selection, action.path, action.argPath, null),
+        },
+      };
+
     case 'SET_SELECTION':
       return { ...state, config: { ...state.config, selection: action.selection } };
 
@@ -231,6 +251,8 @@ interface WizardContextValue {
   setTimeBucket: (bucket: string | null) => void;
   toggleField: (path: string[]) => void;
   toggleObjectDefaults: (path: string[]) => void;
+  setFieldArgument: (path: string[], value: ArgumentValue) => void;
+  removeFieldArgument: (path: string[], argPath: string) => void;
   setSelection: (selection: FieldSelection[]) => void;
   setOverrideWarnings: (value: boolean) => void;
   executionStart: () => void;
@@ -264,6 +286,8 @@ export function WizardProvider({ children }: { children: ReactNode }) {
       setTimeBucket: (bucket) => dispatch({ type: 'SET_TIME_BUCKET', bucket }),
       toggleField: (path) => dispatch({ type: 'TOGGLE_FIELD', path }),
       toggleObjectDefaults: (path) => dispatch({ type: 'TOGGLE_OBJECT_DEFAULTS', path }),
+      setFieldArgument: (path, value) => dispatch({ type: 'SET_FIELD_ARGUMENT', path, value }),
+      removeFieldArgument: (path, argPath) => dispatch({ type: 'REMOVE_FIELD_ARGUMENT', path, argPath }),
       setSelection: (selection) => dispatch({ type: 'SET_SELECTION', selection }),
       setOverrideWarnings: (value) => dispatch({ type: 'SET_OVERRIDE_WARNINGS', value }),
       executionStart: () => dispatch({ type: 'EXECUTION_START' }),

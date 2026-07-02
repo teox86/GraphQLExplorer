@@ -6,9 +6,12 @@ import { EXAMPLE_GOVERNANCE_CONFIG } from '../governance/example-config';
 import { generateQuery } from '../query-builder';
 import { buildVariables } from '../query-builder/build-variables';
 import { renderSelectionSet } from '../query-builder/build-selection';
+import { VariableRegistry } from '../query-builder/variable-registry';
 import { getRootQueryOverride } from '../governance/resolve';
 import { findRootQueryField } from '../schema/schema-utils';
 import type { FieldSelection, QueryConfiguration } from '../types';
+
+const renderCtx = () => ({ governance: EXAMPLE_GOVERNANCE_CONFIG, registry: new VariableRegistry() });
 
 const model = parseSchemaFromSdl(MOCK_SCHEMA_SDL).model!;
 const governance = EXAMPLE_GOVERNANCE_CONFIG;
@@ -78,20 +81,20 @@ describe('renderSelectionSet', () => {
 
   it('skips object fields that have no selected sub-fields', () => {
     const selection: FieldSelection[] = [{ name: 'series', children: [] }];
-    expect(renderSelectionSet(model, rootField.type, selection).trim()).toBe('');
+    expect(renderSelectionSet(model, rootField.type, selection, renderCtx()).trim()).toBe('');
   });
 
   it('de-duplicates repeated field selections', () => {
     const selection: FieldSelection[] = [
       { name: 'requestedPeriod', children: [{ name: 'from', children: [] }, { name: 'from', children: [] }] },
     ];
-    const out = renderSelectionSet(model, rootField.type, selection);
+    const out = renderSelectionSet(model, rootField.type, selection, renderCtx());
     expect(out.match(/from/g)!.length).toBe(1);
   });
 
   it('drops fields that do not exist on the schema', () => {
     const selection: FieldSelection[] = [{ name: 'doesNotExist', children: [] }];
-    expect(renderSelectionSet(model, rootField.type, selection).trim()).toBe('');
+    expect(renderSelectionSet(model, rootField.type, selection, renderCtx()).trim()).toBe('');
   });
 });
 

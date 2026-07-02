@@ -1,23 +1,29 @@
 import type { ComplexityReport, ComplexityWarning, GovernanceConfig, IntrospectionSchemaModel, QueryConfiguration, SchemaTypeRef } from '../types';
 import { getMaxDepth, getMaxSelectedFields, getRootQueryOverride } from '../governance/resolve';
 import { findRootQueryField, getSelectableFields, isListType } from '../schema/schema-utils';
+import { missingRequiredFieldArguments } from '../query-builder/field-arguments';
 
 interface WalkResult {
   count: number;
   maxDepth: number;
   listCount: number;
+  /** "field.path: argName" for every selected field missing a required argument value. */
+  missingFieldArgs: string[];
 }
 
 function walkSelection(
   model: IntrospectionSchemaModel,
+  governance: GovernanceConfig,
   parentTypeRef: SchemaTypeRef,
   selections: QueryConfiguration['selection'],
   currentDepth: number,
+  pathPrefix: string[],
 ): WalkResult {
   const byName = new Map(getSelectableFields(model, parentTypeRef).map((f) => [f.name, f]));
   let count = 0;
   let maxDepth = currentDepth;
   let listCount = 0;
+  const missingFieldArgs: string[] = [];
 
   for (const selection of selections) {
     const field = byName.get(selection.name);
@@ -25,15 +31,21 @@ function walkSelection(
     count += 1;
     if (isListType(field.type)) listCount += 1;
 
+    const fieldPath = [...pathPrefix, selection.name];
+    for (const argPath of missingRequiredFieldArguments(model, governance, field, fieldPath, selection.args)) {
+      missingFieldArgs.push(`${fieldPath.join('.')}: ${argPath}`);
+    }
+
     if (selection.children.length > 0) {
-      const child = walkSelection(model, field.type, selection.children, currentDepth + 1);
+      const child = walkSelection(model, governance, field.type, selection.children, currentDepth + 1, fieldPath);
       count += child.count;
       maxDepth = Math.max(maxDepth, child.maxDepth);
       listCount += child.listCount;
+      missingFieldArgs.push(...child.missingFieldArgs);
     }
   }
 
-  return { count, maxDepth, listCount };
+  return { count, maxDepth, listCount, missingFieldArgs };
 }
 
 /**
@@ -67,11 +79,19 @@ export function estimateComplexity(
   const rootOverride = getRootQueryOverride(governance, config.rootFieldName);
 
   const walk = rootField
-    ? walkSelection(model, rootField.type, config.selection, config.selection.length > 0 ? 1 : 0)
-    : { count: 0, maxDepth: 0, listCount: 0 };
+    ? walkSelection(model, governance, rootField.type, config.selection, config.selection.length > 0 ? 1 : 0, [])
+    : { count: 0, maxDepth: 0, listCount: 0, missingFieldArgs: [] };
 
   if (walk.count === 0) {
     warnings.push({ code: 'NO_FIELDS_SELECTED', severity: 'hard', message: 'Select at least one field to return.' });
+  }
+
+  if (walk.missingFieldArgs.length > 0) {
+    warnings.push({
+      code: 'MISSING_REQUIRED_FIELD_ARGUMENT',
+      severity: 'hard',
+      message: `Some selected fields are missing a required argument: ${walk.missingFieldArgs.join(', ')}. Set it on the field (Field Selection step) or declare a default in the governance config.`,
+    });
   }
 
   const maxDepth = getMaxDepth(governance, config.rootFieldName);
