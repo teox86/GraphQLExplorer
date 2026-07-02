@@ -10,7 +10,7 @@ import { isPathSelected } from '../../app/selection-tree';
 import { estimateComplexity } from '../../complexity/estimate';
 
 export function StepFields() {
-  const { state, toggleField, setSelection, setStep } = useWizard();
+  const { state, toggleField, toggleObjectDefaults, setSelection, setStep } = useWizard();
   const { schemaModel, governance, config } = state;
   const [search, setSearch] = useState('');
 
@@ -92,6 +92,7 @@ export function StepFields() {
             maxDepth={maxDepth}
             selection={config.selection}
             onToggle={toggleField}
+            onToggleObject={toggleObjectDefaults}
           />
         )}
       </Card>

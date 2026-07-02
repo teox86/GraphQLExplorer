@@ -2,7 +2,6 @@ import { useState, type ReactNode } from 'react';
 import type { FieldSelection, GovernanceConfig, IntrospectionSchemaModel, SchemaField, SchemaTypeRef } from '../../types';
 import { getSelectableFields, isLeafField } from '../../schema/schema-utils';
 import { getFieldDescription, getFieldFriendlyLabel, getFieldVisibility, isFieldHidden } from '../../governance/resolve';
-import { isPathSelected } from '../../app/selection-tree';
 import { Badge } from '../ui';
 
 const VISIBILITY_ORDER = ['recommended', 'common', 'advanced', 'technical'] as const;
@@ -22,10 +21,13 @@ interface FieldTreeProps {
   depth: number;
   maxDepth: number;
   selection: FieldSelection[];
+  /** Toggle a single (leaf) field on/off by its full path from the selection root. */
   onToggle: (path: string[]) => void;
+  /** Toggle an object node: select it with its default sub-fields, or clear its branch. */
+  onToggleObject: (path: string[]) => void;
 }
 
-export function FieldTree({ model, governance, parentTypeRef, ancestorPath, ancestorTypeNames, depth, maxDepth, selection, onToggle }: FieldTreeProps) {
+export function FieldTree({ model, governance, parentTypeRef, ancestorPath, ancestorTypeNames, depth, maxDepth, selection, onToggle, onToggleObject }: FieldTreeProps) {
   const fields = getSelectableFields(model, parentTypeRef).filter((f) => !isFieldHidden(governance, [...ancestorPath, f.name].join('.')));
 
   const grouped = new Map<string, SchemaField[]>();
@@ -57,6 +59,7 @@ export function FieldTree({ model, governance, parentTypeRef, ancestorPath, ance
               maxDepth={maxDepth}
               selection={selection}
               onToggle={onToggle}
+              onToggleObject={onToggleObject}
             />
           )}
         </VisibilityGroup>
@@ -102,6 +105,7 @@ function FieldRow({
   maxDepth,
   selection,
   onToggle,
+  onToggleObject,
 }: {
   model: IntrospectionSchemaModel;
   governance: GovernanceConfig;
@@ -112,6 +116,7 @@ function FieldRow({
   maxDepth: number;
   selection: FieldSelection[];
   onToggle: (path: string[]) => void;
+  onToggleObject: (path: string[]) => void;
 }) {
   const path = [...ancestorPath, field.name];
   const fieldPathStr = path.join('.');
@@ -122,10 +127,22 @@ function FieldRow({
   const isCircular = Boolean(namedType && ancestorTypeNames.includes(namedType));
   const depthExceeded = depth >= maxDepth;
   const [expanded, setExpanded] = useState(false);
-  const checked = isPathSelected(selection, path);
+  // `selection` is the sibling list at this depth, so a direct child entry means
+  // this field (leaf) is selected, or (object) has selected descendants.
   const childNode = selection.find((n) => n.name === field.name);
+  const checked = Boolean(childNode);
 
   const disabled = !leaf && (isCircular || depthExceeded);
+
+  function handleCheckboxChange() {
+    if (leaf) {
+      onToggle(path);
+    } else {
+      // Selecting an object pulls in its default sub-fields; expand so the result is visible.
+      onToggleObject(path);
+      if (!checked) setExpanded(true);
+    }
+  }
 
   return (
     <div>
@@ -134,7 +151,7 @@ function FieldRow({
           type="checkbox"
           checked={checked}
           disabled={disabled}
-          onChange={() => onToggle(path)}
+          onChange={handleCheckboxChange}
           className="h-3.5 w-3.5 rounded border-slate-300 text-slate-900 focus:ring-slate-500 disabled:opacity-40"
         />
         {!leaf && (
@@ -168,6 +185,7 @@ function FieldRow({
             maxDepth={maxDepth}
             selection={childNode?.children ?? []}
             onToggle={onToggle}
+            onToggleObject={onToggleObject}
           />
         </div>
       )}
