@@ -1,0 +1,71 @@
+name: Release
+
+# Auto-create a GitHub release whenever changes land on main (i.e. when a PR
+# is merged). The release is tagged from the version in package.json; bump that
+# version to cut a new release. If the tag already exists, this is a no-op, so
+# re-runs and unrelated pushes to main are safe.
+
+on:
+  push:
+    branches: [main]
+
+permissions:
+  contents: write
+
+concurrency:
+  group: release
+  cancel-in-progress: false
+
+jobs:
+  release:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 20
+          cache: npm
+
+      - name: Read version
+        id: version
+        run: echo "version=$(node -p "require('./package.json').version")" >> "$GITHUB_OUTPUT"
+
+      - name: Check whether the tag already exists
+        id: check
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          tag="v${{ steps.version.outputs.version }}"
+          if gh release view "$tag" >/dev/null 2>&1; then
+            echo "exists=true" >> "$GITHUB_OUTPUT"
+            echo "Release $tag already exists - skipping."
+          else
+            echo "exists=false" >> "$GITHUB_OUTPUT"
+          fi
+
+      - name: Install dependencies
+        if: steps.check.outputs.exists == 'false'
+        run: npm ci
+
+      - name: Build
+        if: steps.check.outputs.exists == 'false'
+        run: npm run build
+
+      - name: Package build output
+        if: steps.check.outputs.exists == 'false'
+        run: zip -r "graphql-explorer-v${{ steps.version.outputs.version }}-dist.zip" dist
+
+      - name: Create release
+        if: steps.check.outputs.exists == 'false'
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          tag="v${{ steps.version.outputs.version }}"
+          gh release create "$tag" \
+            --title "$tag" \
+            --target "${{ github.sha }}" \
+            --generate-notes \
+            "graphql-explorer-v${{ steps.version.outputs.version }}-dist.zip"
