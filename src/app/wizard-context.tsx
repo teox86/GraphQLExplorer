@@ -14,7 +14,7 @@ import type { ExecuteQueryResult } from '../graphql/client';
 import { EXAMPLE_GOVERNANCE_CONFIG } from '../governance/example-config';
 import { createEmptyQueryConfiguration } from './default-state';
 import { getRootQueryOverride } from '../governance/resolve';
-import { pruneEmptySelection, toggleSelectionPath } from './selection-tree';
+import { buildObjectDefaultBranch, isPathSelected, pruneEmptySelection, setSelectionBranch, toggleSelectionPath } from './selection-tree';
 import { findRootQueryField } from '../schema/schema-utils';
 
 export interface WizardState {
@@ -47,6 +47,7 @@ type Action =
   | { type: 'SET_GROUP_BY'; keys: string[] }
   | { type: 'SET_TIME_BUCKET'; bucket: string | null }
   | { type: 'TOGGLE_FIELD'; path: string[] }
+  | { type: 'TOGGLE_OBJECT_DEFAULTS'; path: string[] }
   | { type: 'SET_SELECTION'; selection: FieldSelection[] }
   | { type: 'SET_OVERRIDE_WARNINGS'; value: boolean }
   | { type: 'EXECUTION_START' }
@@ -169,6 +170,27 @@ function reducer(state: WizardState, action: Action): WizardState {
       return { ...state, config: { ...state.config, selection: pruned } };
     }
 
+    case 'TOGGLE_OBJECT_DEFAULTS': {
+      const rootField =
+        state.schemaModel && state.config.rootFieldName
+          ? findRootQueryField(state.schemaModel, state.config.rootFieldName)
+          : null;
+      if (!state.schemaModel || !rootField) return state;
+
+      const alreadySelected = isPathSelected(state.config.selection, action.path);
+      let next: FieldSelection[];
+      if (alreadySelected) {
+        // Unchecking an object clears its whole branch.
+        next = setSelectionBranch(state.config.selection, action.path, null);
+      } else {
+        const branch = buildObjectDefaultBranch(state.schemaModel, state.governance, rootField.type, action.path);
+        if (!branch) return state; // object has no directly selectable leaves - expand and pick nested fields instead
+        next = setSelectionBranch(state.config.selection, action.path, branch);
+      }
+      const pruned = pruneEmptySelection(state.schemaModel, rootField.type, next);
+      return { ...state, config: { ...state.config, selection: pruned } };
+    }
+
     case 'SET_SELECTION':
       return { ...state, config: { ...state.config, selection: action.selection } };
 
@@ -208,6 +230,7 @@ interface WizardContextValue {
   setGroupBy: (keys: string[]) => void;
   setTimeBucket: (bucket: string | null) => void;
   toggleField: (path: string[]) => void;
+  toggleObjectDefaults: (path: string[]) => void;
   setSelection: (selection: FieldSelection[]) => void;
   setOverrideWarnings: (value: boolean) => void;
   executionStart: () => void;
@@ -240,6 +263,7 @@ export function WizardProvider({ children }: { children: ReactNode }) {
       setGroupBy: (keys) => dispatch({ type: 'SET_GROUP_BY', keys }),
       setTimeBucket: (bucket) => dispatch({ type: 'SET_TIME_BUCKET', bucket }),
       toggleField: (path) => dispatch({ type: 'TOGGLE_FIELD', path }),
+      toggleObjectDefaults: (path) => dispatch({ type: 'TOGGLE_OBJECT_DEFAULTS', path }),
       setSelection: (selection) => dispatch({ type: 'SET_SELECTION', selection }),
       setOverrideWarnings: (value) => dispatch({ type: 'SET_OVERRIDE_WARNINGS', value }),
       executionStart: () => dispatch({ type: 'EXECUTION_START' }),

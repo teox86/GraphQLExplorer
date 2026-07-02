@@ -50,22 +50,33 @@ jobs:
         if: steps.check.outputs.exists == 'false'
         run: npm ci
 
-      - name: Build
+      - name: Build (hosted, chunked)
         if: steps.check.outputs.exists == 'false'
         run: npm run build
 
-      - name: Package build output
+      - name: Build (standalone single-file)
         if: steps.check.outputs.exists == 'false'
-        run: zip -r "graphql-explorer-v${{ steps.version.outputs.version }}-dist.zip" dist
+        run: npm run build:standalone
+
+      - name: Package artifacts
+        if: steps.check.outputs.exists == 'false'
+        run: |
+          version="${{ steps.version.outputs.version }}"
+          # Double-click artifact: a single self-contained HTML file (no server needed).
+          cp dist-standalone/index.html "GraphQL-Explorer-v${version}.html"
+          # Hosted artifact: the normal chunked build for serving behind a web server.
+          zip -r "graphql-explorer-v${version}-hosted.zip" dist
 
       - name: Create release
         if: steps.check.outputs.exists == 'false'
         env:
           GH_TOKEN: ${{ github.token }}
         run: |
-          tag="v${{ steps.version.outputs.version }}"
+          version="${{ steps.version.outputs.version }}"
+          tag="v${version}"
           gh release create "$tag" \
             --title "$tag" \
             --target "${{ github.sha }}" \
             --generate-notes \
-            "graphql-explorer-v${{ steps.version.outputs.version }}-dist.zip"
+            "GraphQL-Explorer-v${version}.html#GraphQL-Explorer-v${version}.html (double-click to run - no install needed)" \
+            "graphql-explorer-v${version}-hosted.zip#Hosted build (serve behind a web server)"

@@ -26,6 +26,23 @@ wizard state is entirely local to the app and small enough not to need Redux
 
 ## Running it
 
+### Option A - Download & double-click (no install)
+
+Every release ships a single self-contained HTML file. Grab
+`GraphQL-Explorer-vX.Y.Z.html` from the
+[latest release](../../releases/latest), then **double-click it** - it opens
+in your default browser and runs entirely client-side, no Node, no server, no
+build step. All JavaScript and CSS are inlined into that one file, so it also
+works offline (you still need network access to reach whatever GraphQL
+endpoint you point it at).
+
+> The connection you enter and any saved templates are stored in the
+> browser's local storage for that file. Because a `file://` page has no
+> stable origin in some browsers, prefer Option B if you need templates to
+> reliably persist across restarts.
+
+### Option B - Run from source
+
 ```bash
 npm install
 npm run dev
@@ -43,9 +60,14 @@ Open the printed local URL. On Step 1 you can either:
    paste raw SDL or a previously-exported introspection JSON document.
 
 ```bash
-npm run build   # type-checks (tsc -b) then builds with Vite
-npm run preview # serve the production build locally
+npm run build             # type-checks then builds the chunked app to dist/
+npm run preview           # serve the production build locally
+npm run build:standalone  # build the single self-contained file to dist-standalone/index.html
 ```
+
+`npm run build:standalone` produces the same double-click artifact the release
+attaches: one `dist-standalone/index.html` with everything inlined. Rename it
+to anything you like and open it directly.
 
 ## Configuring the endpoint
 
@@ -216,10 +238,15 @@ Two GitHub Actions workflows (`.github/workflows/`):
   lint, test, build. This is what puts a real status check on each PR.
 - **`release.yml`** runs on push to `main` (i.e. when a PR is merged): it
   reads the version from `package.json`, and if a `v<version>` tag doesn't
-  already exist, builds the app and creates a GitHub release for that tag
-  with the built `dist/` attached as a zip. To cut a new release, bump the
-  `version` in `package.json` on a PR; merging it to `main` publishes the
-  release automatically. Pushes that don't change the version are a no-op.
+  already exist, it builds both variants and creates a GitHub release for
+  that tag with two assets attached:
+  - `GraphQL-Explorer-v<version>.html` - the standalone, double-click file;
+  - `graphql-explorer-v<version>-hosted.zip` - the chunked build for serving
+    behind a web server.
+
+  To cut a new release, bump the `version` in `package.json` on a PR; merging
+  it to `main` publishes the release automatically. Pushes that don't change
+  the version are a no-op.
 
 ## Limitations
 

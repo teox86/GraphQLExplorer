@@ -1,11 +1,12 @@
 {
   "name": "graphqlexplorer",
   "private": true,
-  "version": "0.1.0",
+  "version": "0.2.0",
   "type": "module",
   "scripts": {
     "dev": "vite",
     "build": "tsc -b && vite build",
+    "build:standalone": "tsc -b && vite build --mode standalone --outDir dist-standalone",
     "lint": "oxlint",
     "test": "vitest run",
     "test:watch": "vitest",
@@ -29,6 +30,7 @@
     "tailwindcss": "^4.3.2",
     "typescript": "~6.0.2",
     "vite": "^8.1.1",
+    "vite-plugin-singlefile": "^2.3.3",
     "vitest": "^4.1.9"
   }
 }
